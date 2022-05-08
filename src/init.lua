@@ -15,6 +15,8 @@ local Signal = require(ReplicatedStorage.Signal)
 local Maid = require(ReplicatedStorage.Maid)
 
 local function defaultDifferentiator(previous, current)
+	-- TODO: (this applies to the integrator too) How do we represent data that
+	-- has been deleted? We cannot just set it to `nil`.
 end
 
 local function defaultIntegrator(current, changes)
