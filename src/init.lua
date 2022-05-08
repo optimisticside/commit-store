@@ -17,7 +17,8 @@ local Maid = require(ReplicatedStorage.Maid)
 
 local function defaultDifferentiator(previous, current)
 	-- TODO: (this applies to the integrator too) How do we represent data that
-	-- has been deleted? We cannot just set it to `nil`.
+	-- has been deleted? We cannot just set it to `nil`. What if we used an
+	-- empty table to signify an empty value?
 	local changes = {}
 
 	for index, value in pairs(current) do
@@ -181,5 +182,9 @@ function DataStore:commitAsync(key, data)
 		return self:commitDiffAsync(key, diff)
 	end)
 end
+
+--[[
+	Alias for `DataStore::commitAsync` that allows for 
+]]
 
 return DataStore
