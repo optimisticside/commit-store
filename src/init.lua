@@ -1,4 +1,5 @@
 local LOCK_DEATH_THRESHOLD = 20
+local UPDATE_INTERVAL = 60 * 60
 local CACHE_LIFETIME = 60 * 60
 local QUEUE_MAX_LENGTH = 20
 local CHECK_INTERVAL = 5
@@ -39,9 +40,10 @@ function DataStore.new(name, serverId, integrator, differentiator)
 	self._name = name
 	self._maid = Maid.new()
 	self._serverId = serverId or ("%s:%s"):format(game.PlaceId, game.JobId)
-	self._keyLocks = MemoryStoreService:GetSortedMap(name)
 	self._dataStore = DataStoreService:GetDataStore(name)
+	self._keyData = MemoryStoreService:GetSortedMap(name)
 	self._commitQueues = {}
+	self._ownedKeys = {}
 
 	self._differentiator = differentiator or defaultDifferentiator
 	self._integrator = integrator or defaultIntegrator
@@ -52,11 +54,15 @@ function DataStore.new(name, serverId, integrator, differentiator)
 	-- way too often.
 	self._maid:give(RunService.Stepped:Connect(function()
 		if os.clock() - self._lastCheck >= CHECK_INTERVAL then
-
+			self:_checkAndSync()
 		end
 	end))
 
 	return self
+end
+
+function DataStore.is(object)
+	return type(object) == "table" and getmetatable(object) == DataStore
 end
 
 --[[
@@ -85,6 +91,30 @@ function DataStore:_syncToDataStoreAsync(key, diff)
 		latest = self._integrator(latest, diff)
 		return self:getLatestAsync(key, latest)
 	end)
+end
+
+--[[
+	Checks if any commits need to be saved. This is automatically called every
+	`CHECK_INTERVAL` by a connection to `RunService.Stepped`.
+]]
+function DataStore:_checkOwnedKeysAsync()
+	local promises = {}
+
+	for _, key in ipairs(self._ownedKeys) do
+		table.insert(promises, Promise.try(self._keyData.UpdateAsync, self._keyData, key, function(keyData)
+			if keyData.owner == self._serverId and os.time() - keyData.lastSave >= UPDATE_INTERVAL then
+				-- If the `:andThen` function does not return anything, the
+				-- transform function will return `nil` and the update will be
+				-- cancelled.
+				return self:_syncToDataStoreAsync(key):andThen(function()
+					keyData.lastSave = os.time()
+					return keyData
+				end)
+			end
+		end))
+	end
+
+	return Promise.all(promises)
 end
 
 --[[
