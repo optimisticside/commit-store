@@ -101,8 +101,12 @@ end
 	data.
 ]]
 function DataStore:_syncToDataStoreAsync(key, diff)
-	return Promise.try(self._dataStore.UpdateAsync, self._dataStore, function(latest)
-		latest = self._integrator(latest, diff)
+	return Promise.try(self._dataStore.UpdateAsync, self._dataStore, key, function(latest)
+		if diff ~= nil then
+			return self._integrator(latest, diff)
+		end
+
+		-- Default to getting the latest data from `DataStore::getLatestAsync`.
 		return self:getLatestAsync(key, latest)
 	end)
 end
@@ -115,20 +119,32 @@ function DataStore:_checkOwnedKeysAsync()
 	local promises = {}
 
 	for _, key in ipairs(self._ownedKeys) do
-		table.insert(promises, Promise.try(self._keyData.UpdateAsync, self._keyData, key, function(keyData)
-			if keyData.owner == self._serverId and os.time() - keyData.lastSave >= UPDATE_INTERVAL then
-				-- If the `:andThen` function does not return anything, the
-				-- transform function will return `nil` and the update will be
-				-- cancelled.
-				return self:_syncToDataStoreAsync(key):andThen(function()
-					keyData.lastSave = os.time()
-					return keyData
-				end)
-			end
-		end))
+		table.insert(promises, self:syncCommits(key))
 	end
 
 	return Promise.all(promises)
+end
+
+--[[
+	Computes the latest version from the commits and the data-store's original
+	data and updates the data-store.
+]]
+function DataStore:syncCommits(key)
+	return Promise.try(self._keyData.UpdateAsync, self._keyData, key, function(keyData)
+		if keyData.owner == self._serverId and os.time() - keyData.lastSave >= UPDATE_INTERVAL then
+			-- If the `:andThen` function does not return anything, the
+			-- transform function will return `nil` and the update will be
+			-- cancelled.
+			-- TODO: We need to also delete the commits from the queue using
+			-- the identifier provided by `MemoryStoreQueue::ReadAsync` before
+			-- we can update the key-data. Also, I forgot that we cannot yield
+			-- inside of the transform function...
+			return self:_syncToDataStoreAsync(key):andThen(function()
+				keyData.lastSave = os.time()
+				return keyData
+			end)
+		end
+	end)
 end
 
 --[[
