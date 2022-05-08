@@ -165,7 +165,7 @@ end
 function DataStore:commitAsync(key, data)
 	return self:getLatestAsync(key):andThen(function(latest)
 		local diff = self._differentiator(latest, data)
-		return self:commitDiffAsync(key, diff):await()
+		return self:commitDiffAsync(key, diff)
 	end)
 end
 
