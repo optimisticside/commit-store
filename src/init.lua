@@ -16,9 +16,6 @@ local Signal = require(ReplicatedStorage.Signal)
 local Maid = require(ReplicatedStorage.Maid)
 
 local function defaultDifferentiator(previous, current)
-	-- TODO: (this applies to the integrator too) How do we represent data that
-	-- has been deleted? We cannot just set it to `nil`. What if we used an
-	-- empty table to signify an empty value?
 	local changes = {}
 
 	for index, value in pairs(current) do
@@ -31,13 +28,25 @@ local function defaultDifferentiator(previous, current)
 		end
 	end
 
+	-- Go through the table and set any values that were removed to be `{}`.
+	-- This works because if a table is empty we can set it to `nil` anyway.
+	for index in pairs(previous) do
+		if not current[index] then
+			changes[index] = {}
+		end
+	end
+
 	return changes
 end
 
 local function defaultIntegrator(current, changes)
 	for index, change in pairs(changes) do
-		if typeof(current[index]) == "table" and typeof(change) == "table" then
-			change = defaultIntegrator(current[index], change)
+		if typeof(change) == "table" then
+			if not #change then
+				change = nil
+			elseif typeof(current[index]) == "table" then
+				change = defaultIntegrator(current[index], change)
+			end
 		end
 
 		current[index] = change
