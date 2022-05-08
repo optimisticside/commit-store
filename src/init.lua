@@ -183,8 +183,4 @@ function DataStore:commitAsync(key, data)
 	end)
 end
 
---[[
-	Alias for `DataStore::commitAsync` that allows for 
-]]
-
 return DataStore
