@@ -1,8 +1,8 @@
 local LOCK_DEATH_THRESHOLD = 20
 local UPDATE_INTERVAL = 60 * 60
-local CACHE_LIFETIME = 60 * 60
 local QUEUE_MAX_LENGTH = 20
 local CHECK_INTERVAL = 5
+local ACK_INTERVAL = 30
 
 local MemoryStoreService = game:GetService("MemoryStoreService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -77,7 +77,7 @@ function DataStore.new(name, serverId, integrator, differentiator)
 	-- way too often.
 	self._maid:give(RunService.Stepped:Connect(function()
 		if os.clock() - self._lastCheck >= CHECK_INTERVAL then
-			self:_checkAndSync()
+			self:_checkOwnedKeysAsync()
 		end
 	end))
 
@@ -135,6 +135,20 @@ function DataStore:_checkOwnedKeysAsync()
 end
 
 --[[
+	Re-agknowledges that we still own the keys that we own. This system is in
+	place so that if a server goes down, another server can take over
+	ownership.
+]]
+function DataStore:_agknowledgeKeyAsync(key)
+	return Promise.try(self._keyData.UpdateAsync, self._keyData, key, function(keyData)
+		if keyData.owner == self._serverId and os.time() - keyData.lastAck >= ACK_INTERVAL then
+			keyData.lastAck = os.time()
+			return keyData
+		end
+	end)
+end
+
+--[[
 	Computes the latest version from the commits and the data-store's original
 	data and updates the data-store.
 ]]
@@ -152,6 +166,18 @@ function DataStore:syncCommits(key)
 				keyData.lastSave = os.time()
 				return keyData
 			end)
+		end
+
+		-- We use a binary spin-lock for acquiring key ownership, since using a
+		-- queue would be too much work. Actually, we could use a number system
+		-- where each server keeps a number that represents their position in
+		-- the queue. TODO: ^
+		if keyData.owner ~= self._serverId and os.time() - keyData.lastAck >= LOCK_DEATH_THRESHOLD then
+			keyData.owner = self._serverId
+			keyData.lastAck = os.time()
+
+			table.insert(self._ownedKeys, key)
+			return keyData
 		end
 	end)
 end
