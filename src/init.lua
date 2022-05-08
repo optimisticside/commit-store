@@ -18,6 +18,19 @@ local Maid = require(ReplicatedStorage.Maid)
 local function defaultDifferentiator(previous, current)
 	-- TODO: (this applies to the integrator too) How do we represent data that
 	-- has been deleted? We cannot just set it to `nil`.
+	local changes = {}
+
+	for index, value in pairs(current) do
+		if previous[index] ~= value then
+			if typeof(previous[index]) == "table" and typeof(value) == "table" then
+				value = defaultDifferentiator(previous[index], value)
+			end
+
+			changes[index] = value
+		end
+	end
+
+	return changes
 end
 
 local function defaultIntegrator(current, changes)
