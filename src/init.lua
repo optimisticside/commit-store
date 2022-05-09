@@ -163,7 +163,7 @@ end
 ]]
 function DataStore:syncCommits(key)
 	return Promise.try(self._keyData.GetAsync, self._keyData, key):andThen(function(keyData)
-		if keyData.owner == self._serverId and os.time - keyData.lastASave >= UPDATE_INTERVAL then
+		if keyData.owner == self._serverId and os.time - keyData.lastSave >= UPDATE_INTERVAL then
 			return self:_syncToDataStoreAsync(key):andThen(function()
 				-- TODO: `keyData` may not have changed since we last
 				-- retrieved it, but we cannot put all this in a
