@@ -121,13 +121,17 @@ end
 	data.
 ]]
 function DataStore:_syncToDataStoreAsync(key, diff)
-	return Promise.try(self._dataStore.UpdateAsync, self._dataStore, key, function(latest)
-		if diff ~= nil then
-			return self._integrator(latest, diff)
-		end
+	local commitQueue = self._getCommitQueue(key)
 
-		-- Default to getting the latest data from `DataStore::getLatestAsync`.
-		return self:getLatestAsync(key, latest)
+	return Promise.try(commitQueue.ReadAsync, commitQueue, QUEUE_MAX_LENGTH):andThen(function(commits)
+		return Promise.try(self._dataStore.UpdateAsync, self._dataStore, key, function(latest)
+			if diff ~= nil then
+				return self._integrator(latest, diff)
+			end
+
+			-- Default to getting the latest data from `DataStore::getLatestAsync`.
+			return self:getLatestAsync(key, latest, commits)
+		end)
 	end)
 end
 
@@ -225,10 +229,18 @@ end
 	Retrieves the commits made by other servers, as well as what is in the
 	data-store to compute the most up-to-date value.
 ]]
-function DataStore:getLatestAsync(key, givenLatest)
-	local commitQueue = self._getCommitQueue(key)
+function DataStore:getLatestAsync(key, givenLatest, givenCommits)
+	-- This ugly chain of promises is so that we can manually provide a list
+	-- of promises to the function, which is necessary because you cannot yield
+	-- inside of callbacks.
+	return Promise.new(function()
+		if givenCommits then
+			return givenCommits
+		end
 
-	return Promise.try(commitQueue.ReadAsync, commitQueue, QUEUE_MAX_LENGTH):andThen(function(commits)
+		local commitQueue = self._getCommitQueue(key)
+		return Promise.try(commitQueue.ReadAsync, commitQueue, QUEUE_MAX_LENGTH)
+	end):andThen(function(commits)
 		return Promise.new(function()
 			return givenLatest or Promise.try(self._dataStore.GetAsync, self._dataStore, key)
 		end):andThen(function(latest)
