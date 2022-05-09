@@ -139,7 +139,7 @@ function DataStore:_checkOwnedKeysAsync()
 	local promises = {}
 
 	for _, key in ipairs(self._ownedKeys) do
-		table.insert(promises, self:syncCommits(key))
+		table.insert(promises, self:syncCommitsAsync(key))
 	end
 
 	return Promise.all(promises)
@@ -178,7 +178,7 @@ end
 	Computes the latest version from the commits and the data-store's original
 	data and updates the data-store.
 ]]
-function DataStore:syncCommits(key)
+function DataStore:syncCommitsAsync(key)
 	return Promise.try(self._keyData.GetAsync, self._keyData, key):andThen(function(keyData)
 		if not keyData then
 			return self:_createKeyData()
