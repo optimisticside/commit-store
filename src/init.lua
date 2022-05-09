@@ -225,17 +225,19 @@ end
 	Retrieves the commits made by other servers, as well as what is in the
 	data-store to compute the most up-to-date value.
 ]]
-function DataStore:getLatestAsync(key, latest)
+function DataStore:getLatestAsync(key, givenLatest)
 	local commitQueue = self._getCommitQueue(key)
 
 	return Promise.try(commitQueue.ReadAsync, commitQueue, QUEUE_MAX_LENGTH):andThen(function(commits)
-		latest = latest or Promise.try(self._dataStore.GetAsync, self._dataStore, key):await()
+		return Promise.new(function()
+			return givenLatest or Promise.try(self._dataStore.GetAsync, self._dataStore, key)
+		end):andThen(function(latest)
+			for _, commit in ipairs(commits) do
+				latest = self._integrator(latest, commit.diff)
+			end
 
-		for _, commit in ipairs(commits) do
-			latest = self._integrator(latest, commit.diff)
-		end
-
-		return latest
+			return latest
+		end)
 	end)
 end
 
