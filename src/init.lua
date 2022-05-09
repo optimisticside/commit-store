@@ -153,18 +153,15 @@ end
 	data and updates the data-store.
 ]]
 function DataStore:syncCommits(key)
-	return Promise.try(self._keyData.UpdateAsync, self._keyData, key, function(keyData)
-		if keyData.owner == self._serverId and os.time() - keyData.lastSave >= UPDATE_INTERVAL then
-			-- If the `:andThen` function does not return anything, the
-			-- transform function will return `nil` and the update will be
-			-- cancelled.
-			-- TODO: We need to also delete the commits from the queue using
-			-- the identifier provided by `MemoryStoreQueue::ReadAsync` before
-			-- we can update the key-data. Also, I forgot that we cannot yield
-			-- inside of the transform function...
+	return Promise.try(self._keyData.GetAsync, self._keyData, key):andThen(function(keyData)
+		if keyData.owner == self._serverId and os.time - keyData.lastASave >= UPDATE_INTERVAL then
 			return self:_syncToDataStoreAsync(key):andThen(function()
+				-- TODO: `keyData` may not have changed since we last
+				-- retrieved it, but we cannot put all this in a
+				-- `MemoryStoreSrotedMap::UpdateAsync` because transform
+				-- functions cannot yield.
 				keyData.lastSave = os.time()
-				return keyData
+				return Promise.try(self._keyData.SetAsync, self._keyData, key, keyData)
 			end)
 		end
 	end)
