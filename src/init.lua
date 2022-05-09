@@ -141,6 +141,15 @@ end
 ]]
 function DataStore:_agknowledgeKeyAsync(key)
 	return Promise.try(self._keyData.UpdateAsync, self._keyData, key, function(keyData)
+		if keyData.owner ~= self._serverId then
+			local index = table.find(self._ownedKeys, key)
+			if index then
+				table.remove(self._ownedKeys, index)
+			end
+
+			return nil
+		end
+
 		if keyData.owner == self._serverId and os.time() - keyData.lastAck >= ACK_INTERVAL then
 			keyData.lastAck = os.time()
 			return keyData
