@@ -152,6 +152,12 @@ end
 ]]
 function DataStore:_agknowledgeKeyAsync(key)
 	return Promise.try(self._keyData.UpdateAsync, self._keyData, key, function(keyData)
+		if not keyData then
+			-- `DataStore::_createKeyData` already sets the last agknowledgement
+			-- to the current time.
+			return self:_createKeyData()
+		end
+
 		if keyData.owner ~= self._serverId then
 			local index = table.find(self._ownedKeys, key)
 			if index then
