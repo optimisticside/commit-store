@@ -167,7 +167,15 @@ function DataStore:syncCommits(key)
 				return keyData
 			end)
 		end
+	end)
+end
 
+--[[
+	Tries to steal a lock, if the server has not acknowledged ownership
+	recently enough.
+]]
+function DataStore:_tryStealLockAsync(key)
+	return Promise.try(self._keyData.UpdateAsync, self._keyData, key, function(keyData)
 		-- We use a binary spin-lock for acquiring key ownership, since using a
 		-- queue would be too much work. Actually, we could use a number system
 		-- where each server keeps a number that represents their position in
