@@ -62,7 +62,7 @@ function DataStore.new(name, serverId, integrator, differentiator)
 
 	self._name = name
 	self._maid = Maid.new()
-	self._serverId = serverId or ("%s:%s"):format(game.PlaceId, game.JobId)
+	self._serverId = serverId or ("%d:%s"):format(game.PlaceId, game.JobId)
 	self._dataStore = DataStoreService:GetDataStore(name)
 	self._keyData = MemoryStoreService:GetSortedMap(name)
 	self._commitQueues = {}
