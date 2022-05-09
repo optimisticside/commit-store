@@ -105,6 +105,17 @@ function DataStore:_getCommitQueue(key)
 end
 
 --[[
+	Creates the key-data for a key in the data-store.
+]]
+function DataStore:_createKeyData()
+	return {
+		owner = self._serverId,
+		lastAck = os.time(),
+		lastSave = 0,
+	}
+end
+
+--[[
 	Saves data to the data-store. This data must be manually calculated through
 	an integrator. Note that only the diffs must be calculated, not the actual
 	data.
@@ -163,6 +174,10 @@ end
 ]]
 function DataStore:syncCommits(key)
 	return Promise.try(self._keyData.GetAsync, self._keyData, key):andThen(function(keyData)
+		if not keyData then
+			return self:_createKeyData()
+		end
+
 		if keyData.owner == self._serverId and os.time - keyData.lastSave >= UPDATE_INTERVAL then
 			return self:_syncToDataStoreAsync(key):andThen(function()
 				-- TODO: `keyData` may not have changed since we last
@@ -182,6 +197,10 @@ end
 ]]
 function DataStore:_tryStealLockAsync(key)
 	return Promise.try(self._keyData.UpdateAsync, self._keyData, key, function(keyData)
+		if not keyData then
+			return self:_createKeyData()
+		end
+
 		-- We use a binary spin-lock for acquiring key ownership, since using a
 		-- queue would be too much work. Actually, we could use a number system
 		-- where each server keeps a number that represents their position in
