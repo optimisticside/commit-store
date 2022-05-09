@@ -188,7 +188,7 @@ function DataStore:syncCommitsAsync(key)
 			return self:_syncToDataStoreAsync(key):andThen(function()
 				-- TODO: `keyData` may not have changed since we last
 				-- retrieved it, but we cannot put all this in a
-				-- `MemoryStoreSrotedMap::UpdateAsync` because transform
+				-- `MemoryStoreSortedMap::UpdateAsync` because transform
 				-- functions cannot yield.
 				keyData.lastSave = os.time()
 				return Promise.try(self._keyData.SetAsync, self._keyData, key, keyData)
