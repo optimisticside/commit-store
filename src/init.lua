@@ -225,7 +225,10 @@ function DataStore:commitDiffAsync(key, diff)
 		author = self._serverId,
 		time = os.time(),
 		diff = diff,
-	})
+	}):andThen(function()
+		-- This might a bad descision overall...
+		return self:_tryStealLockAsync()
+	end)
 end
 
 --[[
