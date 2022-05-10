@@ -124,7 +124,7 @@ end
 	data.
 ]]
 function DataStore:_syncToDataStoreAsync(key, diff)
-	local commitQueue = self._getCommitQueue(key)
+	local commitQueue = self:_getCommitQueue(key)
 
 	return Promise.try(commitQueue.ReadAsync, commitQueue, QUEUE_MAX_LENGTH):andThen(function(commits)
 		return Promise.try(self._dataStore.UpdateAsync, self._dataStore, key, function(latest)
@@ -245,7 +245,7 @@ function DataStore:getLatestAsync(key, givenLatest, givenCommits)
 			return givenCommits
 		end
 
-		local commitQueue = self._getCommitQueue(key)
+		local commitQueue = self:_getCommitQueue(key)
 		return Promise.try(commitQueue.ReadAsync, commitQueue, QUEUE_MAX_LENGTH)
 	end):andThen(function(commits)
 		return Promise.new(function()
