@@ -88,6 +88,10 @@ function DataStore.is(object)
 	return type(object) == "table" and getmetatable(object) == DataStore
 end
 
+function DataStore:destroy()
+	self._maid:doCleaning()
+end
+
 --[[
 	Gets the queue of commits of the given key.
 ]]
