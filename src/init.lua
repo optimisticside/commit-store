@@ -198,12 +198,12 @@ function DataStore:syncCommitsAsync(key)
 
 		if keyData.owner == self._serverId and os.time - keyData.lastSave >= UPDATE_INTERVAL then
 			return self:_syncToDataStoreAsync(key):andThen(function()
-				-- TODO: `keyData` may not have changed since we last
-				-- retrieved it, but we cannot put all this in a
-				-- `MemoryStoreSortedMap::UpdateAsync` because transform
-				-- functions cannot yield.
-				keyData.lastSave = os.time()
-				return Promise.try(self._keyData.SetAsync, self._keyData, key, keyData)
+				-- Key-data may have changed since we last so we retrieve
+				-- it again through a call to update-async.
+				return Promise.try(self._keyData.UpdateAsync, self._keyData, key, function(data)
+					data.lastSave = os.time()
+					return data
+				end)
 			end)
 		end
 	end)
