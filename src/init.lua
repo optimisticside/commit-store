@@ -12,7 +12,6 @@ local RunService = game:GetService("RunService")
 -- Update the paths to these modules if they do not match the location
 -- in your game.
 local Promise = require(ReplicatedStorage.Promise)
-local Signal = require(ReplicatedStorage.Signal)
 local Maid = require(ReplicatedStorage.Maid)
 
 local function defaultDifferentiator(previous, current)
@@ -200,9 +199,9 @@ function DataStore:syncCommitsAsync(key)
 			return self:_syncToDataStoreAsync(key):andThen(function()
 				-- Key-data may have changed since we last so we retrieve
 				-- it again through a call to update-async.
-				return Promise.try(self._keyData.UpdateAsync, self._keyData, key, function(data)
-					data.lastSave = os.time()
-					return data
+				return Promise.try(self._keyData.UpdateAsync, self._keyData, key, function(newKeyData)
+					newKeyData.lastSave = os.time()
+					return newKeyData
 				end)
 			end)
 		end
@@ -267,7 +266,7 @@ end
 	be resolved once the commit has been made.
 
 	```lua
-	-- You don't always need to use the differentiator if you know what is
+	-- You don't always need to call commitAsync if you know what is
 	-- being changed in the data.
 	dataStore:commitDiffAsync(key, { updated = true })
 	```
