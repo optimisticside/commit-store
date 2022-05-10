@@ -129,8 +129,10 @@ function DataStore:_syncToDataStoreAsync(key, diff)
 				return self._integrator(latest, diff)
 			end
 
-			-- Default to getting the latest data from `DataStore::getLatestAsync`.
-			return self:getLatestAsync(key, latest, commits)
+			-- Default to getting the latest data from
+			-- `DataStore::getLatestAsync`. Note that this will not yield since
+			-- we've provided everything the function needs already.
+			return self:getLatestAsync(key, latest, commits):await()
 		end)
 	end)
 end
