@@ -72,13 +72,10 @@ function DataStore.new(name, serverId, integrator, differentiator)
 	self._differentiator = differentiator or defaultDifferentiator
 	self._integrator = integrator or defaultIntegrator
 
-	self._lastCheck = 0
-	-- TODO: Can we spawn a thread (it can be canceled by the maid through
-	-- `task.cancel`) instead of this run-service collection that we know runs
-	-- way too often.
-	self._maid:give(RunService.Stepped:Connect(function()
-		if os.clock() - self._lastCheck >= CHECK_INTERVAL then
-			self:_checkOwnedKeysAsync()
+	self._maid:give(task.spawn(function()
+		while true do
+			self:_checkOwnedKeysAsync():await()
+			task.wait(CHECK_INTERVAL)
 		end
 	end))
 
