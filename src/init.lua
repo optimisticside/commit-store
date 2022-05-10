@@ -39,6 +39,8 @@ local function defaultDifferentiator(previous, current)
 end
 
 local function defaultIntegrator(current, changes)
+	current = table.clone(current)
+
 	for index, change in pairs(changes) do
 		if typeof(change) == "table" then
 			if not #change then
