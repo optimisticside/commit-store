@@ -185,6 +185,8 @@ end
 	data and updates the data-store.
 ]]
 function DataStore:syncCommitsAsync(key)
+	-- We lose atomicity here, since we cannot wrap everything in an
+	-- update-async call, though this is not important here.
 	return Promise.try(self._keyData.GetAsync, self._keyData, key):andThen(function(keyData)
 		if not keyData then
 			return self:_createKeyData()
