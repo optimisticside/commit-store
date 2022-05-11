@@ -1,3 +1,4 @@
+local EXPIRATION_TIME = 60 * 60 * 24 * 15
 local LOCK_DEATH_THRESHOLD = 20
 local UPDATE_INTERVAL = 60 * 60
 local QUEUE_MAX_LENGTH = 20
@@ -15,6 +16,10 @@ local Maid = require(ReplicatedStorage.Maid)
 
 local function defaultDifferentiator(previous, current)
 	local changes = {}
+
+	if not previous or type(previous) ~= "table" then
+		return current
+	end
 
 	for index, value in pairs(current) do
 		if previous[index] ~= value then
@@ -38,7 +43,7 @@ local function defaultDifferentiator(previous, current)
 end
 
 local function defaultIntegrator(current, changes)
-	current = table.clone(current)
+	current = table.clone(current or {})
 
 	for index, change in pairs(changes) do
 		if typeof(change) == "table" then
@@ -108,10 +113,10 @@ end
 --[[
 	Creates the key-data for a key in the data-store.
 ]]
-function DataStore:_createKeyData()
+function DataStore:_createKeyData(currentTime)
 	return {
 		owner = self._serverId,
-		lastAck = os.time(),
+		lastAck = currentTime or os.time(),
 		lastSave = 0,
 	}
 end
@@ -158,11 +163,13 @@ end
 	ownership.
 ]]
 function DataStore:_agknowledgeKeyAsync(key)
+	local currentTime = os.time()
+
 	return Promise.try(self._keyData.UpdateAsync, self._keyData, key, function(keyData)
 		if not keyData then
 			-- `DataStore::_createKeyData` already sets the last
 			-- agknowledgement to the current time.
-			return self:_createKeyData()
+			return self:_createKeyData(currentTime)
 		end
 
 		if keyData.owner ~= self._serverId then
@@ -174,11 +181,13 @@ function DataStore:_agknowledgeKeyAsync(key)
 			return nil
 		end
 
-		if keyData.owner == self._serverId and os.time() - keyData.lastAck >= ACK_INTERVAL then
-			keyData.lastAck = os.time()
+		if keyData.owner == self._serverId and currentTime - keyData.lastAck >= ACK_INTERVAL then
+			keyData.lastAck = currentTime
 			return keyData
 		end
-	end)
+
+		return nil
+	end, EXPIRATION_TIME)
 end
 
 --[[
@@ -193,16 +202,18 @@ function DataStore:syncCommitsAsync(key)
 			return self:_createKeyData()
 		end
 
-		if keyData.owner == self._serverId and os.time - keyData.lastSave >= UPDATE_INTERVAL then
+		if keyData.owner == self._serverId and os.time() - keyData.lastSave >= UPDATE_INTERVAL then
 			return self:_syncToDataStoreAsync(key):andThen(function()
+				local currentTime = os.time()
+
 				-- Key-data may have changed since we last so we retrieve
 				-- it again through a call to update-async to preserve
 				-- atomicity.
 				-- TODO: This becomes two get-requests which is not optimal.
 				return Promise.try(self._keyData.UpdateAsync, self._keyData, key, function(newKeyData)
-					newKeyData.lastSave = os.time()
+					newKeyData.lastSave = currentTime
 					return newKeyData
-				end)
+				end, EXPIRATION_TIME)
 			end)
 		end
 	end)
@@ -213,6 +224,8 @@ end
 	recently enough.
 ]]
 function DataStore:_tryStealLockAsync(key)
+	local currentTime = os.time()
+
 	return Promise.try(self._keyData.UpdateAsync, self._keyData, key, function(keyData)
 		if not keyData then
 			return self:_createKeyData()
@@ -222,14 +235,16 @@ function DataStore:_tryStealLockAsync(key)
 		-- queue would be too much work. Actually, we could use a number system
 		-- where each server keeps a number that represents their position in
 		-- the queue. TODO: ^
-		if keyData.owner ~= self._serverId and os.time() - keyData.lastAck >= LOCK_DEATH_THRESHOLD then
+		if keyData.owner ~= self._serverId and currentTime - keyData.lastAck >= LOCK_DEATH_THRESHOLD then
 			keyData.owner = self._serverId
-			keyData.lastAck = os.time()
+			keyData.lastAck = currentTime
 
 			table.insert(self._ownedKeys, key)
 			return keyData
 		end
-	end)
+
+		return nil
+	end, EXPIRATION_TIME)
 end
 
 --[[
@@ -252,6 +267,8 @@ function DataStore:getLatestAsync(key, givenLatest, givenCommits)
 		return Promise.new(function(resolve)
 			resolve(givenLatest or Promise.try(self._dataStore.GetAsync, self._dataStore, key))
 		end):andThen(function(latest)
+			latest = latest or {}
+
 			for _, commit in ipairs(commits or {}) do
 				latest = self._integrator(latest, commit.diff)
 			end
@@ -281,9 +298,9 @@ function DataStore:commitDiffAsync(key, diff)
 		author = self._serverId,
 		time = os.time(),
 		diff = diff,
-	}):andThen(function()
+	}, EXPIRATION_TIME):andThen(function()
 		-- This might a bad descision overall...
-		return self:_tryStealLockAsync()
+		return self:_tryStealLockAsync(key)
 	end)
 end
 
