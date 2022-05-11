@@ -7,7 +7,6 @@ local ACK_INTERVAL = 30
 local MemoryStoreService = game:GetService("MemoryStoreService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local DataStoreService = game:GetService("DataStoreService")
-local RunService = game:GetService("RunService")
 
 -- Update the paths to these modules if they do not match the location
 -- in your game.
@@ -19,7 +18,7 @@ local function defaultDifferentiator(previous, current)
 
 	for index, value in pairs(current) do
 		if previous[index] ~= value then
-			if typeof(previous[index]) == "table" and typeof(value) == "table" then
+			if type(previous[index]) == "table" and type(value) == "table" then
 				value = defaultDifferentiator(previous[index], value)
 			end
 
@@ -125,7 +124,7 @@ end
 function DataStore:_syncToDataStoreAsync(key, diff)
 	local commitQueue = self:_getCommitQueue(key)
 
-	return Promise.try(commitQueue.ReadAsync, commitQueue, QUEUE_MAX_LENGTH):andThen(function(commits)
+	return Promise.try(commitQueue.ReadAsync, commitQueue, QUEUE_MAX_LENGTH, false, 5):andThen(function(commits)
 		return Promise.try(self._dataStore.UpdateAsync, self._dataStore, key, function(latest)
 			if diff ~= nil then
 				return self._integrator(latest, diff)
@@ -187,7 +186,7 @@ end
 	data and updates the data-store.
 ]]
 function DataStore:syncCommitsAsync(key)
-	-- We lose atomicity here, since we cannot wrap everything in an
+	-- We initially lose atomicity here, since we cannot wrap everything in an
 	-- update-async call, though this is not important here.
 	return Promise.try(self._keyData.GetAsync, self._keyData, key):andThen(function(keyData)
 		if not keyData then
@@ -197,7 +196,9 @@ function DataStore:syncCommitsAsync(key)
 		if keyData.owner == self._serverId and os.time - keyData.lastSave >= UPDATE_INTERVAL then
 			return self:_syncToDataStoreAsync(key):andThen(function()
 				-- Key-data may have changed since we last so we retrieve
-				-- it again through a call to update-async.
+				-- it again through a call to update-async to preserve
+				-- atomicity.
+				-- TODO: This becomes two get-requests which is not optimal.
 				return Promise.try(self._keyData.UpdateAsync, self._keyData, key, function(newKeyData)
 					newKeyData.lastSave = os.time()
 					return newKeyData
@@ -239,18 +240,19 @@ function DataStore:getLatestAsync(key, givenLatest, givenCommits)
 	-- This ugly chain of promises is so that we can manually provide a list
 	-- of promises to the function, which is necessary because you cannot yield
 	-- inside of callbacks.
-	return Promise.new(function()
+	return Promise.new(function(resolve)
 		if givenCommits then
-			return givenCommits
+			resolve(givenCommits)
+			return
 		end
 
 		local commitQueue = self:_getCommitQueue(key)
-		return Promise.try(commitQueue.ReadAsync, commitQueue, QUEUE_MAX_LENGTH)
+		resolve(Promise.try(commitQueue.ReadAsync, commitQueue, QUEUE_MAX_LENGTH, false, 5))
 	end):andThen(function(commits)
-		return Promise.new(function()
-			return givenLatest or Promise.try(self._dataStore.GetAsync, self._dataStore, key)
+		return Promise.new(function(resolve)
+			resolve(givenLatest or Promise.try(self._dataStore.GetAsync, self._dataStore, key))
 		end):andThen(function(latest)
-			for _, commit in ipairs(commits) do
+			for _, commit in ipairs(commits or {}) do
 				latest = self._integrator(latest, commit.diff)
 			end
 
