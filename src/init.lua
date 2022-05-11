@@ -8,6 +8,7 @@ local ACK_INTERVAL = 30
 local MemoryStoreService = game:GetService("MemoryStoreService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local DataStoreService = game:GetService("DataStoreService")
+local RunService = game:GetService("RunService")
 
 -- Update the paths to these modules if they do not match the location
 -- in your game.
@@ -64,6 +65,12 @@ DataStore.__index = DataStore
 function DataStore.new(name, serverId, integrator, differentiator)
 	local self = {}
 	setmetatable(self, DataStore)
+
+	-- The game's job-id is just an empty string if we're running inside
+	-- of studio.
+	if RunService:IsStudio() and not serverId then
+		error("Argument 2 required if in studio")
+	end
 
 	self._name = name
 	self._maid = Maid.new()
