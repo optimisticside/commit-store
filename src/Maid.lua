@@ -22,9 +22,9 @@
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local sharedModules = ReplicatedStorage:WaitForChild("Modules")
 
-local Promise = require(sharedModules.Promise)
+-- Change this as needed.
+local Promise = require(ReplicatedStorage.Promise)
 
 local Maid = {}
 Maid.__index = Maid
@@ -138,3 +138,7 @@ function Maid:doCleaning()
 		Maid._destroyObject(object)
 	end
 end
+
+Maid.destroy = Maid.doCleaning
+
+return Maid
