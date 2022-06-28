@@ -1,3 +1,12 @@
+--[[
+	Commit-based wrapper to Roblox's datastore-service. Stored commits in
+	memory-store and assigns a server to be the owner of that key, meaning it
+	is the one that will update the data-store.
+
+	Ownership must be acknowledged every now and then, or another server will
+	take ownership from the server.
+]]
+
 local EXPIRATION_TIME = 60 * 60 * 24 * 15
 local LOCK_DEATH_THRESHOLD = 20
 local UPDATE_INTERVAL = 60 * 60
@@ -59,12 +68,12 @@ local function defaultIntegrator(current, changes)
 	end
 end
 
-local DataStore = {}
-DataStore.__index = DataStore
+local CommitStore = {}
+CommitStore.__index = CommitStore
 
-function DataStore.new(name, serverId, integrator, differentiator)
+function CommitStore.new(name, serverId, integrator, differentiator)
 	local self = {}
-	setmetatable(self, DataStore)
+	setmetatable(self, CommitStore)
 
 	-- The game's job-id is just an empty string if we're running inside
 	-- of studio.
@@ -93,18 +102,18 @@ function DataStore.new(name, serverId, integrator, differentiator)
 	return self
 end
 
-function DataStore.is(object)
-	return type(object) == "table" and getmetatable(object) == DataStore
+function CommitStore.is(object)
+	return type(object) == "table" and getmetatable(object) == CommitStore
 end
 
-function DataStore:destroy()
+function CommitStore:destroy()
 	self._maid:doCleaning()
 end
 
 --[[
 	Gets the queue of commits of the given key.
 ]]
-function DataStore:_getCommitQueue(key)
+function CommitStore:_getCommitQueue(key)
 	local cached = self._commitQueues[key]
 	if cached then
 		return cached
@@ -120,7 +129,7 @@ end
 --[[
 	Creates the key-data for a key in the data-store.
 ]]
-function DataStore:_createKeyData(currentTime)
+function CommitStore:_createKeyData(currentTime)
 	return {
 		owner = self._serverId,
 		lastAck = currentTime or os.time(),
@@ -133,7 +142,7 @@ end
 	an integrator. Note that only the diffs must be calculated, not the actual
 	data.
 ]]
-function DataStore:_syncToDataStoreAsync(key, diff)
+function CommitStore:_syncToDataStoreAsync(key, diff)
 	local commitQueue = self:_getCommitQueue(key)
 
 	return Promise.try(commitQueue.ReadAsync, commitQueue, QUEUE_MAX_LENGTH, false, 5):andThen(function(commits)
@@ -143,8 +152,8 @@ function DataStore:_syncToDataStoreAsync(key, diff)
 			end
 
 			-- Default to getting the latest data from
-			-- `DataStore::getLatestAsync`. Note that this will not yield since
-			-- we've provided everything the function needs already.
+			-- `CommitStore::getLatestAsync`. Note that this will not yield
+			-- since we've provided everything the function needs already.
 			return self:getLatestAsync(key, latest, commits):await()
 		end)
 	end)
@@ -154,7 +163,7 @@ end
 	Checks if any commits need to be saved. This is automatically called every
 	`CHECK_INTERVAL` by a connection to `RunService.Stepped`.
 ]]
-function DataStore:_checkOwnedKeysAsync()
+function CommitStore:_checkOwnedKeysAsync()
 	local promises = {}
 
 	for _, key in ipairs(self._ownedKeys) do
@@ -169,12 +178,12 @@ end
 	place so that if a server goes down, another server can take over
 	ownership.
 ]]
-function DataStore:_agknowledgeKeyAsync(key)
+function CommitStore:_agknowledgeKeyAsync(key)
 	local currentTime = os.time()
 
 	return Promise.try(self._keyData.UpdateAsync, self._keyData, key, function(keyData)
 		if not keyData then
-			-- `DataStore::_createKeyData` already sets the last
+			-- `CommitStore::_createKeyData` already sets the last
 			-- agknowledgement to the current time.
 			return self:_createKeyData(currentTime)
 		end
@@ -201,7 +210,7 @@ end
 	Computes the latest version from the commits and the data-store's original
 	data and updates the data-store.
 ]]
-function DataStore:syncCommitsAsync(key)
+function CommitStore:syncCommitsAsync(key)
 	-- We initially lose atomicity here, since we cannot wrap everything in an
 	-- update-async call, though this is not important here.
 	return Promise.try(self._keyData.GetAsync, self._keyData, key):andThen(function(keyData)
@@ -230,7 +239,7 @@ end
 	Tries to steal a lock, if the server has not acknowledged ownership
 	recently enough.
 ]]
-function DataStore:_tryStealLockAsync(key)
+function CommitStore:_tryStealLockAsync(key)
 	local currentTime = os.time()
 
 	return Promise.try(self._keyData.UpdateAsync, self._keyData, key, function(keyData)
@@ -258,7 +267,7 @@ end
 	Retrieves the commits made by other servers, as well as what is in the
 	data-store to compute the most up-to-date value.
 ]]
-function DataStore:getLatestAsync(key, givenLatest, givenCommits)
+function CommitStore:getLatestAsync(key, givenLatest, givenCommits)
 	-- This ugly chain of promises is so that we can manually provide a list
 	-- of promises to the function, which is necessary because you cannot yield
 	-- inside of callbacks.
@@ -293,10 +302,10 @@ end
 	```lua
 	-- You don't always need to call commitAsync if you know what is
 	-- being changed in the data.
-	dataStore:commitDiffAsync(key, { updated = true })
+	commitStore:commitDiffAsync(key, { updated = true })
 	```
 ]]
-function DataStore:commitDiffAsync(key, diff)
+function CommitStore:commitDiffAsync(key, diff)
 	local commitQueue = self:_getCommitQueue(key)
 	-- Each commit contains the diff, as in, the new data that was added. It
 	-- also contains when the data was added and by who. This metadata helps
@@ -315,11 +324,11 @@ end
 	Commits data to the data-store and returns a promise that will be resolved
 	once the commit has been made.
 ]]
-function DataStore:commitAsync(key, data)
+function CommitStore:commitAsync(key, data)
 	return self:getLatestAsync(key):andThen(function(latest)
 		local diff = self._differentiator(latest, data)
 		return self:commitDiffAsync(key, diff)
 	end)
 end
 
-return DataStore
+return CommitStore
