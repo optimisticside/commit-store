@@ -1,6 +1,6 @@
 --[[
-	Commit-based wrapper to Roblox's datastore-service. Stored commits in
-	memory-store and assigns a server to be the owner of that key, meaning it
+	Commit-based wrapper to Roblox's DataStoreService. Stores commits in
+	a memory-store and assigns a server to be the owner of that key, meaning it
 	is the one that will update the data-store.
 
 	Ownership must be acknowledged every now and then, or another server will
