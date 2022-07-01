@@ -174,17 +174,17 @@ function CommitStore:_checkOwnedKeysAsync()
 end
 
 --[[
-	Re-agknowledges that we still own the keys that we own. This system is in
+	Re-acknowledges that we still own the keys that we own. This system is in
 	place so that if a server goes down, another server can take over
 	ownership.
 ]]
-function CommitStore:_agknowledgeKeyAsync(key)
+function CommitStore:_acknowledgeKeyAsync(key)
 	local currentTime = os.time()
 
 	return Promise.try(self._keyData.UpdateAsync, self._keyData, key, function(keyData)
 		if not keyData then
 			-- `CommitStore::_createKeyData` already sets the last
-			-- agknowledgement to the current time.
+			-- acknowledgement to the current time.
 			return self:_createKeyData(currentTime)
 		end
 
