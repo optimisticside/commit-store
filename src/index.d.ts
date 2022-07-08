@@ -1,14 +1,4 @@
-type Integrator<T> = (current: T, diff: Partial<T>) => T;
-type Differentiator<T> = (previous: T, current: T) => Partial<T>;
-
 export default interface CommitStore<T> {
-	new(
-		name: string,
-		serverId?: string,
-		integrator?: Integrator<T>,
-		differentiator?: Differentiator<T>
-	): CommitStore<T>;
-
 	/**
 	 * Computes the latest version from the commits and the data-store's
 	 * original data and updates the data-store.
@@ -34,3 +24,14 @@ export default interface CommitStore<T> {
 	 */
 	commitAsync(key: string, value: T): Promise<void>;
 }
+
+type Integrator<T> = (current: T, diff: Partial<T>) => T;
+type Differentiator<T> = (previous: T, current: T) => Partial<T>;
+declare const CommitStore: new<T>(
+	name: string,
+	serverId?: string,
+	integrator?: Integrator<T>,
+	differentiator?: Differentiator<T>
+) => CommitStore<T>;
+
+export = CommitStore;
