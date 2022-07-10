@@ -1,4 +1,4 @@
-export default interface CommitStore<T> {
+interface CommitStore<T> {
 	/**
 	 * Computes the latest version from the commits and the data-store's
 	 * original data and updates the data-store.
@@ -20,18 +20,18 @@ export default interface CommitStore<T> {
 
 	/**
 	 * Commits data to the data-store and returns a promise that will be
-	 * resolved once the commit has been made. 
+	 * resolved once the commit has been made.
 	 */
 	commitAsync(key: string, value: T): Promise<void>;
 }
 
 type Integrator<T> = (current: T, diff: Partial<T>) => T;
 type Differentiator<T> = (previous: T, current: T) => Partial<T>;
-declare const CommitStore: new<T>(
+declare const CommitStore: new <T>(
 	name: string,
 	serverId?: string,
 	integrator?: Integrator<T>,
-	differentiator?: Differentiator<T>
+	differentiator?: Differentiator<T>,
 ) => CommitStore<T>;
 
 export = CommitStore;
