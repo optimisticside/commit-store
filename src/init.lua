@@ -232,6 +232,8 @@ function CommitStore:syncCommitsAsync(key)
 				end, EXPIRATION_TIME)
 			end)
 		end
+
+		return nil
 	end)
 end
 
